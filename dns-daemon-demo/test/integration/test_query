@@ -1,0 +1,39 @@
+#!/bin/bash
+
+set -o errexit
+set -o nounset
+set -o pipefail
+
+PORT=9999
+PROG=ddd
+
+trap "pkill $PROG" EXIT
+
+start() {
+    ./"$PROG" -p "$PORT"
+}
+
+run_dig() {
+    dig @127.0.0.1 +noall +answer -p "$PORT" "$1" \
+        | sed 's/\s\+/ /g'
+}
+
+query_a() {
+    echo -n "test ${FUNCNAME[0]} ... "
+    [ "$(run_dig 'abc.com')"  = 'abc.com. 3600 IN A 1.2.3.4' ]
+    [ "$(run_dig 'whatever')" = 'whatever. 3600 IN A 1.2.3.4' ]
+    [ "$(run_dig '.')"        = '. 3600 IN A 1.2.3.4' ]
+    echo 'ok'
+}
+
+query_other() {
+    echo -n "test ${FUNCNAME[0]} ... "
+    ! dig @127.0.0.1 +timeout=1 +retry=0 -p "$PORT" -t AAAA 'abc.com' >/dev/null
+    ! dig @127.0.0.1 +timeout=1 +retry=0 -p "$PORT" -t PTR  'abc.com' >/dev/null
+    ! dig @127.0.0.1 +timeout=1 +retry=0 -p "$PORT" -c CH   'abc.com' >/dev/null
+    echo 'ok'
+}
+
+start
+query_a
+query_other
